@@ -144,6 +144,9 @@ export function createHud(canvas) {
     text('HDG', 278, 36, 13, PALETTE.muted, 'left', 'bold');
     text(`${String(Math.round(plane.heading)).padStart(3, '0')}°`, 278, 66, 30, PALETTE.gaugeLit, 'left', 'bold');
     text(`V/S ${plane.verticalSpeed >= 0 ? '+' : ''}${plane.verticalSpeed.toFixed(1)} m/s`, 28, 94, 13, PALETTE.muted);
+    if (state.wind) {
+      text(`WIND ${Math.round(state.wind.speed * 3.6)} km/h ${state.wind.label}`, 196, 94, 13, PALETTE.muted);
+    }
     compassStrip(plane.heading);
 
     // Top-right: mission, score, timer.

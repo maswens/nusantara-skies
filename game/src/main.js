@@ -11,6 +11,7 @@ import { ACTION_CAMERA, ACTION_CONFIRM, ACTION_MISSION_1, ACTION_MISSION_2, ACTI
 import { createRenderer } from './render.js';
 import { createHud, SCREEN_DONE, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './hud.js';
 import { createAudio } from './audio.js';
+import { windAt } from './weather.js';
 import { stageShot } from './shots.js';
 
 const MAX_FRAME = 0.25;
@@ -148,7 +149,9 @@ function runGame() {
   function step() {
     if (screen !== SCREEN_PLAY) return;
     const controls = input.controls();
-    const events = plane.step(controls, game.mission);
+    const wind = windAt(plane.state.x, plane.state.z, game.elapsed);
+    game.wind = wind;
+    const events = plane.step(controls, game.mission, wind);
     game.score = plane.state.score;
     game.elapsed = plane.state.elapsed;
     audio.update(plane.state.throttle, plane.state.speed, !plane.state.onGround || plane.state.speed > 5);

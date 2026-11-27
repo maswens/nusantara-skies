@@ -4,7 +4,7 @@
 [![rank](https://make.fun/badge/best-flight-game-20261126-0057/maswens/nusantara-skies/rank.svg)](https://make.fun/bounty/best-flight-game-20261126-0057/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
 [![reward](https://make.fun/badge/best-flight-game-20261126-0057/maswens/nusantara-skies/reward.svg)](https://make.fun/bounty/best-flight-game-20261126-0057?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
 
-Nusantara Skies is a flight game over five Indonesian islands — Pulau Merak, Banda, Seroja, Karang, and Ombak — with three missions: Ring Run (8 rings), Island Hop (3 islands), and Precision Landing. Fly with fuel, stall, and damage to manage, over a procedural terrain heightfield with a runway on the north coast of Pulau Merak.
+Nusantara Skies is a flight game over five Indonesian islands — Pulau Merak, Banda, Seroja, Karang, and Ombak — with three missions: Ring Run (8 rings), Island Hop (3 islands), and Precision Landing. Fly with fuel, stall, and damage to manage, in a steady north-westerly wind that drifts the aeroplane sideways and has to be crabbed out on final, over a procedural terrain heightfield with a runway on the north coast of Pulau Merak. Chase and cockpit views, with lit instruments in both.
 
 ## Run it
 

@@ -12,13 +12,26 @@ function hexToRgb(hex) {
   return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 }
 
+function css(rgb) {
+  return `rgb(${rgb[0] | 0},${rgb[1] | 0},${rgb[2] | 0})`;
+}
+
 function mix(a, b, t) {
-  const ca = hexToRgb(a);
-  const cb = hexToRgb(b);
-  const r = Math.round(ca[0] + (cb[0] - ca[0]) * t);
-  const g = Math.round(ca[1] + (cb[1] - ca[1]) * t);
-  const bl = Math.round(ca[2] + (cb[2] - ca[2]) * t);
-  return `rgb(${r},${g},${bl})`;
+  const ca = typeof a === 'string' ? hexToRgb(a) : a;
+  const cb = typeof b === 'string' ? hexToRgb(b) : b;
+  return [
+    ca[0] + (cb[0] - ca[0]) * t,
+    ca[1] + (cb[1] - ca[1]) * t,
+    ca[2] + (cb[2] - ca[2]) * t,
+  ];
+}
+
+function scaleRgb(rgb, factor) {
+  return [
+    Math.max(0, Math.min(255, rgb[0] * factor)),
+    Math.max(0, Math.min(255, rgb[1] * factor)),
+    Math.max(0, Math.min(255, rgb[2] * factor)),
+  ];
 }
 
 function hash2(x, z) {
@@ -26,15 +39,35 @@ function hash2(x, z) {
   return s - Math.floor(s);
 }
 
-function groundColour(height, x, z, distance) {
+// Islands far beyond the flown mesh, drawn as hazy silhouettes on the
+// horizon so the sea never ends in a hard straight line: the archipelago
+// keeps going past the edge of the map.
+const FAR_ISLANDS = [
+  { x: -1900, z: -2900, peak: 210, width: 1200 },
+  { x: 2400, z: -2500, peak: 150, width: 850 },
+  { x: -2700, z: 1400, peak: 130, width: 950 },
+  { x: 3000, z: 1700, peak: 110, width: 800 },
+];
+
+function groundColour(height, x, z, distance, slope) {
   let base;
   if (height <= 0.5) base = PALETTE.seaDeep;
   else if (height <= 2.5) base = PALETTE.seaShallow;
   else if (height <= 5) base = PALETTE.sand;
   else if (height <= 70) base = hash2(Math.floor(x / 40), Math.floor(z / 40)) > 0.5 ? PALETTE.grass : PALETTE.grassDark;
   else base = PALETTE.rock;
-  const fog = Math.min(0.6, distance / 1500);
-  return mix(base, PALETTE.skyLow, fog);
+  // One quad, one tone: a hash of the quad's ground position varies the
+  // colour a little, so a hillside reads as ground and not as flat paint,
+  // and a slope catches less light than flat ground does.
+  const jitter = 0.9 + hash2(Math.floor(x / 40), Math.floor(z / 40)) * 0.2;
+  const slopeShade = Math.max(0.76, 1 - slope * 0.012);
+  let colour = scaleRgb(hexToRgb(base), jitter * slopeShade);
+  // Sun glints on the sea: a few quads catch the light and sparkle.
+  if (height <= 2.5 && hash2(Math.floor(x / 26), Math.floor(z / 26)) > 0.88) {
+    colour = mix(colour, '#bfe6f2', 0.45);
+  }
+  const fog = Math.min(0.72, distance / 1400);
+  return css(mix(colour, PALETTE.skyLow, fog));
 }
 
 export function createRenderer(canvas) {
@@ -93,9 +126,9 @@ export function createRenderer(canvas) {
     sky.addColorStop(1, '#083049');
     context.fillStyle = sky;
     context.fillRect(0, 0, FIELD.width, FIELD.height);
-    // Sun, fixed in the north-east sky.
+    // Sun, fixed in the north-east sky, kept below the top HUD panels.
     const sunX = FIELD.width * 0.78;
-    const sunY = Math.max(60, horizonY - 190);
+    const sunY = Math.max(130, horizonY - 190);
     const glow = context.createRadialGradient(sunX, sunY, 4, sunX, sunY, 130);
     glow.addColorStop(0, 'rgba(255, 243, 196, 0.95)');
     glow.addColorStop(0.25, 'rgba(255, 243, 196, 0.45)');
@@ -109,14 +142,37 @@ export function createRenderer(canvas) {
     return horizonY;
   }
 
+  function drawFarIslands(camera) {
+    for (const island of FAR_ISLANDS) {
+      const left = project(camera, { x: island.x - island.width / 2, y: 0, z: island.z });
+      const right = project(camera, { x: island.x + island.width / 2, y: 0, z: island.z });
+      const peak = project(camera, { x: island.x, y: island.peak, z: island.z });
+      const midLeft = project(camera, { x: island.x - island.width / 4, y: island.peak * 0.45, z: island.z });
+      const midRight = project(camera, { x: island.x + island.width / 4, y: island.peak * 0.4, z: island.z });
+      if (!left || !right || !peak || !midLeft || !midRight) continue;
+      context.fillStyle = 'rgba(93, 138, 168, 0.55)';
+      context.beginPath();
+      context.moveTo(left.x, left.y);
+      context.lineTo(midLeft.x, midLeft.y);
+      context.lineTo(peak.x, peak.y);
+      context.lineTo(midRight.x, midRight.y);
+      context.lineTo(right.x, right.y);
+      context.closePath();
+      context.fill();
+    }
+  }
+
   function drawTerrain(camera, plane) {
     const heading = plane.heading * DEG;
     const fx = Math.sin(heading);
     const fz = -Math.cos(heading);
     const rx = Math.cos(heading);
     const rz = Math.sin(heading);
-    const rows = [28, 48, 75, 108, 148, 195, 250, 315, 390, 480, 590, 720, 880, 1080];
-    const cols = [-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1];
+    // A finer mesh than the eye needs up close, stretching far out: small
+    // quads near the aeroplane so hills read as hills, long ones at the
+    // horizon where the fog has already done the work.
+    const rows = [24, 40, 60, 84, 112, 144, 182, 226, 278, 340, 415, 505, 610, 735, 885, 1060, 1270, 1520];
+    const cols = [-1, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
     const grid = [];
     for (let r = 0; r < rows.length; r += 1) {
       const row = [];
@@ -139,7 +195,9 @@ export function createRenderer(canvas) {
         const e = grid[r + 1][c];
         if (!a.point || !b.point || !d.point || !e.point) continue;
         const avgHeight = (a.height + b.height + d.height + e.height) / 4;
-        context.fillStyle = groundColour(avgHeight, a.x, a.z, a.dist);
+        const slope = Math.max(a.height, b.height, d.height, e.height)
+          - Math.min(a.height, b.height, d.height, e.height);
+        context.fillStyle = groundColour(avgHeight, a.x, a.z, a.dist, slope);
         context.beginPath();
         context.moveTo(a.point.x, a.point.y);
         context.lineTo(b.point.x, b.point.y);
@@ -151,7 +209,7 @@ export function createRenderer(canvas) {
     }
   }
 
-  function drawRunway(camera) {
+  function drawRunway(camera, wind) {
     const half = RUNWAY.length / 2;
     const wide = RUNWAY.width / 2;
     const y = RUNWAY.elevation + 0.6;
@@ -193,6 +251,32 @@ export function createRenderer(canvas) {
       context.moveTo(t1.x, t1.y);
       context.lineTo(t2.x, t2.y);
       context.stroke();
+    }
+    // Windsock beside the strip: the one thing on the airfield that shows
+    // the wind the pilot is about to land in, streaming downwind.
+    if (wind) {
+      const base = { x: RUNWAY.x + 42, y: RUNWAY.elevation, z: RUNWAY.z + 90 };
+      const foot = project(camera, base);
+      const top = project(camera, { x: base.x, y: base.y + 14, z: base.z });
+      const tip = project(camera, { x: base.x + wind.x * 1.6, y: base.y + 13, z: base.z + wind.z * 1.6 });
+      if (foot && top && tip) {
+        context.strokeStyle = '#e8e8e8';
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(foot.x, foot.y);
+        context.lineTo(top.x, top.y);
+        context.stroke();
+        context.strokeStyle = '#ff7f1c';
+        context.lineWidth = 5;
+        context.beginPath();
+        context.moveTo(top.x, top.y);
+        context.lineTo(tip.x, tip.y);
+        context.stroke();
+        context.fillStyle = '#ff7f1c';
+        context.beginPath();
+        context.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+        context.fill();
+      }
     }
   }
 
@@ -411,9 +495,10 @@ export function createRenderer(canvas) {
     const plane = game.plane;
     const camera = cameraFor(plane);
     drawSky(plane);
+    drawFarIslands(camera);
     drawClouds(camera);
     drawTerrain(camera, plane);
-    drawRunway(camera);
+    drawRunway(camera, game.wind);
     if (game.mission && game.mission.rings) {
       const next = game.mission.nextRing();
       game.mission.rings.forEach((ring) => {

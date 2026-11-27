@@ -71,9 +71,12 @@ export function createPlane() {
   /**
    * One fixed step. `input` holds throttleDelta (-1..1), turn (-1..1, left to
    * right), pitchInput (-1..1, down to up) and flaps (true while held).
-   * `mission` is the active mission object, or null for free flight.
+   * `mission` is the active mission object, or null for free flight. `wind`
+   * is the wind at the aeroplane, or null for dead calm: moving air pushes
+   * the aeroplane sideways while it flies, so a crosswind on final has to
+   * be flown out or the sortie drifts off the strip.
    */
-  function step(input, mission) {
+  function step(input, mission, wind) {
     let events = 0;
     if (state.crashed || state.landed) return events;
     state.elapsed += STEP;
@@ -126,6 +129,13 @@ export function createPlane() {
     const forward = state.onGround ? Math.max(state.speed, 0) : state.speed;
     state.x += Math.sin(headingRad) * forward * STEP;
     state.z -= Math.cos(headingRad) * forward * STEP;
+
+    // Wind drift: the wheels hold the aeroplane on the ground, but in the
+    // air the breeze carries it sideways, a little every step.
+    if (!state.onGround && wind) {
+      state.x += wind.x * STEP;
+      state.z += wind.z * STEP;
+    }
 
     // Takeoff: enough speed and a pulled nose lifts off the strip. While the
     // wheels are down the aeroplane sits on the ground under it, runway or not.
